@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Filtro Anti-Phishing PoC",
+  "version": "1.0",
+  "description": "Prueba de concepto para detectar formularios sospechosos.",
+  "permissions": [
+    "webNavigation",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
