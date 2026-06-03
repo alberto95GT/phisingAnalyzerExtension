@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Filtro Anti-Phishing PoC",
+  "name": "Phising AI Analyzer Extension",
   "version": "1.0",
   "description": "Prueba de concepto para detectar formularios sospechosos.",
   "permissions": [
