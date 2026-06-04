@@ -1,0 +1,10 @@
+{
+  "ultima_actualizacion": "2026-06-04",
+  "dominios_seguros": [
+    "google.com", "google.es", "bing.com", "yahoo.com", "microsoft.com",
+    "youtube.com", "facebook.com", "instagram.com", "twitter.com", "x.com",
+    "amazon.com", "amazon.es", "wikipedia.org", "chatgpt.com",
+    "unicajabanco.es", "bbva.es", "bancosantander.es", "caixabank.es",
+    "gmail.com", "outlook.com"
+  ]
+}
