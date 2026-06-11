@@ -2,15 +2,20 @@
   "manifest_version": 3,
   "name": "Phising AI Analyzer Extension",
   "version": "1.0",
-  "description": "Prueba de concepto para detectar formularios sospechosos.",
   "permissions": [
     "webNavigation",
-    "scripting"
+    "scripting",
+    "storage",
+    "alarms"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
   }
 }
