@@ -1,4 +1,4 @@
-#  Phishing AI Analyzer Extension (v1.0)
+#  Phishing AI Analyzer Extension (v1.1)
 
 Extensión de Google Chrome (Manifest V3) diseñada para el análisis heurístico estructural del DOM en tiempo real y la detección proactiva de ataques de suplantación de identidad (Phishing) y exfiltración de credenciales mediante Inteligencia Artificial (Gemini API).
 
