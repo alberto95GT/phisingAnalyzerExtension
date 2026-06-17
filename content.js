@@ -24,20 +24,20 @@
     /*
         Tenemos en este conjunto de 4 funciones que cooperan para realizar el escaneo del DOM de la pagina y la posterior comunicacion
         con el background para que la IA analice el mismo y dicte si bloquear o no:
-            - iniciarVigilancia(): Desconecta cualquier posible MutationObserver que hubiera de un escaneo anterior (SPA) e inicia uno nuevo
-                                   Este llama a buscarLogin() para escanear la pagina en busqueda de elementos en los que podamos facilitar datos
+            - iniciarBusqueda(): Desconecta cualquier posible MutationObserver que hubiera de un escaneo anterior (SPA) e inicia uno nuevo
+                                   Este llama a buscarInputsSensibles() para escanear la pagina en busqueda de elementos en los que podamos facilitar datos
                                    Si en 8 segundos no pillamos nada, matamos el MutationObserver
-            - buscarLogin(): Escanea el DOM  en busca de inputs de contraseña o campos de texto sospechosos relacionados con credenciales.
-                             Se apoya en la funcion extraerElementosProfundos. En caso de querer modificar aquello que buscamos en la pagina, esta seria
-                             la funcion a tocar. En esta version buscamos tanto campos de entrada de contraseña, como cajas de texto con atributos sospechosos,
-                             atravesando el Shadow DOM.
-            - extraerElementosProfundos(): Función recursiva que extrae elementos de un selector dado incluso dentro de Shadow DOM.
-            - extraerEsquemaAvanzado(): Si buscarLogin encuentra algo que consideramos digno de analizar, esta función extrae un esquema con metadatos,
+            - buscarInputsSensibles(): Escanea el DOM  en busca de inputs sospechosos relacionados con credenciales.
+                             Se apoya en la funcion extraerRecursivo. En caso de querer modificar aquello que buscamos en la pagina, esta seria
+                             la funcion a tocar. En esta version buscamos cualquier input de dato critico basado en una comparativa con expresiones regulares
+                             que hemos definido (contraseñas, tarjetas de crédito...).
+            - extraerRecursivo(): Función recursiva que extrae elementos de un selector dado incluso dentro de Shadow DOM.
+            - extraerEsquemaDOM(): Si buscarInputsSensibles encuentra algo que consideramos digno de analizar, esta función extrae un esquema con metadatos,
                                         contexto cercano y enlaces para que la IA analice. Recibe la respuesta y actua o no llamando al bloqueo.
      */
 
 
-    function extraerElementosProfundos(selector, root = document) {
+    function extraerRecursivo(selector, root = document) {
         let elementosEncontrados = [];
 
         // Sacamos los elementos del nivel actual que coincidan con el selector
@@ -47,82 +47,93 @@
         const todosLosElementos = root.querySelectorAll('*');
         todosLosElementos.forEach(elemento => {
             if (elemento.shadowRoot) {
-                elementosEncontrados.push(...extraerElementosProfundos(selector, elemento.shadowRoot));
+                elementosEncontrados.push(...extraerRecursivo(selector, elemento.shadowRoot));
             }
         });
 
         return elementosEncontrados;
     }
 
-    function buscarLogin() {
-        // Usamos nuestro perforador en lugar de document.querySelector normal
-        const todosLosInputs = extraerElementosProfundos('input', document.body);
 
-        // Filtramos los que no nos sirven (botones, campos ocultos)
-        const inputsUtiles = todosLosInputs.filter(input =>
-            input.type !== 'hidden' && input.type !== 'submit' && input.type !== 'button'
-        );
+    function buscarInputsSensibles() {
+        // Especificamos los inputs a analizar (aquellos donde podemos meter nuestros datos privados involuntariamente).
+        const selectorInputs = 'input:not([type]), input[type="text"], input[type="password"], input[type="number"], input[type="tel"], input[type="email"], [contenteditable="true"], [role="textbox"]';
+        const todosLosInputs = extraerRecursivo(selectorInputs, document.body);
 
-        // Caso 1: Input de password
-        const inputPassword = inputsUtiles.find(input => input.type === 'password');
-        if (inputPassword) return inputPassword;
+        // Expresiones regulares que vamos a usar para buscar para detectar los inputs de datos sensibles
+        const regexAtributos = /\b(password|passwd|pwd|clave|pin|cvv|cvc|cvn|card-?number|cc-?num|cardno|tarjeta|ccnum|cardnum)\b/i;
+        const regexTextos = /\b(contraseñ?a|password|clave|pin|cvv|cvc|tarjeta|numero(?: de)? tarjeta|numero tarjeta|card(?:\s|-)number|expiry|expir|exp\W|mm\/yy|vencim|caducidad|cvv2|cvc2)\b/i;
 
-        // Caso 2: Input de texto con atributos extraños
-        const palabrasClaveAtributos = ['password', 'pass', 'pwd', 'clave', 'pin'];
-        for (const input of inputsUtiles) {
-            const id = (input.id || "").toLowerCase();
-            const name = (input.name || "").toLowerCase();
-            // Forzamos a String porque en SVG/Angular la clase a veces es un objeto
-            const className = (input.className && typeof input.className === 'string' ? input.className : "").toLowerCase();
+        //Para cada uno de los input que hemos detectado, pasamos los filtros
+        for (const input of todosLosInputs) {
+            // Saltamos campos en los que el usuario no puede escribir
+            if (input.disabled) continue;
 
-            if (palabrasClaveAtributos.some(keyword => id.includes(keyword) || name.includes(keyword) || className.includes(keyword))) {
-                console.warn("[Content] Input de texto disfrazado de password (Atributos).");
+            //Si es contraseña lo pillamos directo
+            if (input.type === 'password') return input;
+
+            // Caso 1: Probamos los atributos del html con las expresiones regulares.
+            const id = input.id || "";
+            const name = input.name || "";
+            const className = typeof input.className === 'string' ? input.className : "";
+
+            if (regexAtributos.test(`${id} ${name} ${className}`)) {
                 return input;
             }
-        }
 
-        // Caso 3: Input asociado a una etiqueta de contraseña
-        const palabrasClaveTexto = ['contraseña', 'password', 'pass', 'pwd', 'clave', 'pin'];
-        for (const input of inputsUtiles) {
+            // Caso 2: Probamos tambien los tributos visuales directos
+            const placeholder = input.placeholder || "";
+            const ariaLabel = input.getAttribute('aria-label') || "";
 
-            // Paginas modernas
-            const ariaLabel = (input.getAttribute('aria-label') || "").toLowerCase();
-            if (palabrasClaveTexto.some(k => ariaLabel.includes(k))) return input;
+            if (regexTextos.test(`${placeholder} ${ariaLabel}`)) {
+                return input;
+            }
 
-            // Buscar en labels asociados tradicionales
+            // Caso 3: Si ninguno de los casos previos salta, miramos el contexto cercano de la pagina.
+            let textoContexto = "";
+
             if (input.labels && input.labels.length > 0) {
-                const textoLabel = input.labels[0].innerText.toLowerCase();
-                if (palabrasClaveTexto.some(keyword => textoLabel.includes(keyword))) {
-                    console.warn("[Content] Input genérico junto a texto clave.");
+                textoContexto = Array.from(input.labels).map(l => l.innerText).join(" ");
+            }
+            else if (input.parentElement) {
+                const textoPadre = input.parentElement.innerText || "";
+                if (textoPadre.length < 150) {
+                    textoContexto = textoPadre;
+                }
+            }
+
+            if (textoContexto) {
+                // Quitamos los acentos temporalmente parael Regex
+                const textoNormalizado = textoContexto.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+                if (regexTextos.test(textoNormalizado)) {
+                    console.warn(`[Content] Dato sensible detectado en el contexto: "${textoContexto.substring(0, 30)}..."`);
                     return input;
                 }
             }
         }
 
-        return null; // No hay rastro de login
+        return null;
     }
 
-    function extraerEsquemaAvanzado() {
-        console.log("[Content] Iniciando extracción avanzada del DOM...");
 
-        // Buscamos presencia de entrada de datos privados
-        const inputSospechoso = buscarLogin();
-
+    function extraerEsquemaDOM(inputSospechoso) {
         if (!inputSospechoso) {
-            console.log("[Content] Página limpia. No hay rastro de inputs de credenciales.");
-            chrome.runtime.sendMessage({ accion: "todoLimpio", motivo: "Sin huella de login" });
+            console.warn("[Content] Se intentó extraer esquema sin input válido.");
             return;
         }
 
+        console.log("[Content] Preparando esquema del DOM para Gemini...");
+
         // En caso de haber, actuamos. Buscamos el contenedor padre del input.
-        const contenedorLogin = inputSospechoso.closest("form") || inputSospechoso.closest("main") || inputSospechoso.closest("div") || document.body;
+        const contenedorInput = inputSospechoso.closest("form") || inputSospechoso.closest("main") || inputSospechoso.closest("div") || document.body;
 
         // METADATOS
         const tituloPagina = document.title || "Sin título";
         const dominioActual = window.location.hostname;
 
         // CONTEXTO CERCANO
-        let textoContexto = contenedorLogin.innerText.replace(/\s+/g, ' ').substring(0, 400);
+        let textoContexto = contenedorInput.innerText.replace(/\s+/g, ' ').substring(0, 400);
 
         // Si el input estaba muy profundo en un Shadow DOM, el textoContexto puede quedar vacío.
         // En ese caso, aplicamos fuerza bruta y leemos el cuerpo de la página.
@@ -131,7 +142,7 @@
         }
 
         // ENLACES
-        const enlaces = extraerElementosProfundos('a', document.body);
+        const enlaces = extraerRecursivo('a', document.body);
         let linksInternos = 0, linksExternos = 0, linksVacios = 0;
 
         enlaces.forEach(enlace => {
@@ -147,8 +158,8 @@
 
         // DESTINO DEL FORMULARIO
         let destinoFormulario = "Envío mediante API/Javascript";
-        if (contenedorLogin.tagName.toLowerCase() === "form") {
-            destinoFormulario = contenedorLogin.getAttribute("action") || "Mismo dominio (Vacio)";
+        if (contenedorInput.tagName.toLowerCase() === "form") {
+            destinoFormulario = contenedorInput.getAttribute("action") || "Mismo dominio (Vacio)";
         }
 
         const esquemaParaIA = {
@@ -174,7 +185,7 @@
     let temporizador = null;
 
     // Funcion para la vigilancia del DOM de forma dinamica.
-    function iniciarVigilancia() {
+    function iniciarBusqueda() {
         console.log("[Content] Iniciando vigilancia del DOM...");
 
         // Si nos despiertan de nuevo por cambio dentro de un SPA (single page application), matamos los procesos antiguos primero
@@ -182,19 +193,23 @@
         if (temporizador) clearTimeout(temporizador);
 
         // Hacemos el escaneo inicial
-        if (buscarLogin()) {
-            console.log("[Content] Login detectado en la carga inicial/cambio de ruta.");
-            extraerEsquemaAvanzado();
+        let inputInicial = buscarInputsSensibles();
+
+        if (inputInicial) {
+            console.log("[Content] Input de dato sensible detectado en la carga inicial/cambio de ruta.");
+            extraerEsquemaDOM(inputInicial);
             return;
         }
 
         vigia = new MutationObserver((mutaciones, observer) => {
             // Usamos el buscador en tiempo real
-            if (buscarLogin()) {
-                console.log("[Content] Login detectado dinámicamente.");
+            let inputDinamico = buscarInputsSensibles();
+            if (inputDinamico) {
+                console.log("[Content] Input de dato sensible detectado dinámicamente.");
                 observer.disconnect();
                 clearTimeout(temporizador);
-                setTimeout(extraerEsquemaAvanzado, 500);
+
+                setTimeout(() => extraerEsquemaDOM(inputDinamico), 500);
             }
         });
 
@@ -208,7 +223,7 @@
     }
 
     // Comienza la vigilancia inicial al cargar la página
-    iniciarVigilancia();
+    iniciarBusqueda();
 
     //--------------------------------------------------------------------------------------------------------------Fin funciones extraccion
 
@@ -217,7 +232,7 @@
     //--------------------------------------------------------------------------------------------------------------Bloqueo de la pagina
 
     /*
-        Este bloqueo se llama desde la funcion extraerEsquemaAvanzado solo en caso de que la respuesta de la IA (desde el
+        Este bloqueo se llama desde la funcion extraerEsquemaDOM solo en caso de que la respuesta de la IA (desde el
         background) sea que la pagina es maliciosa.
      */
 
@@ -310,7 +325,7 @@
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.accion === "reactivarVigilancia") {
             console.warn("[Content] Cambio de ruta interno detectado. Reiniciando vigilancia...");
-            iniciarVigilancia();
+            iniciarBusqueda();
         }
     });
 
