@@ -175,7 +175,11 @@
         chrome.runtime.sendMessage(
             { accion: "analizarDOM", datos: esquemaParaIA },
             (respuesta) => {
-                if (respuesta && respuesta.veredicto === "BLOQUEAR") ejecutarBloqueo();
+                if (respuesta && respuesta.veredicto === "BLOQUEAR"){
+                    ejecutarBloqueo();
+                } else if (respuesta && respuesta.veredicto === "AVISO") {
+                    ejecutarAviso();
+                }
             }
         );
     }
@@ -229,11 +233,13 @@
 
 
 
-    //--------------------------------------------------------------------------------------------------------------Bloqueo de la pagina
+    //--------------------------------------------------------------------------------------------------------------Bloqueo y avisos de la pagina
 
     /*
         Este bloqueo se llama desde la funcion extraerEsquemaDOM solo en caso de que la respuesta de la IA (desde el
         background) sea que la pagina es maliciosa o tenga implementacion de seguridad deficiente en cuanto al tratamiento de credenciales.
+        Por otro lado el aviso se llama desde la misma funcion, y se lanzara en casos en los que no estemos la 100% seguros de la malicia
+        de la página, pero detectamos una seguridad deficiente por lo que preferimos un simple aviso al usuario en lugar de un bloqueo completo.
      */
 
     function ejecutarBloqueo() {
@@ -343,7 +349,92 @@
         });
     }
 
-    //--------------------------------------------------------------------------------------------------------------Fin bloqueo
+
+    function ejecutarAviso() {
+        console.warn("[Content] Alerta de seguridad moderada. Mostrando Toast de Aviso.");
+
+        // Evitamos inyectar varios avisos simultáneos
+        if (document.getElementById("phishing-ids-warning")) return;
+
+        const logoUrl = chrome.runtime.getURL("logo.png");
+
+        // Creamos el contenedor "Toast" (flotante arriba a la derecha)
+        let toast = document.createElement('div');
+        toast.id = 'phishing-ids-warning';
+
+        // Estilos del Toast (No bloquea la pantalla, flota arriba a la derecha)
+        toast.style.cssText = `
+            position: fixed !important; 
+            top: 20px !important; 
+            right: 20px !important; 
+            width: 380px !important; 
+            background: linear-gradient(145deg, #131B2F 0%, #0B1021 100%) !important; 
+            border: 1px solid #F59E0B !important; /* Borde Ámbar/Naranja */
+            border-left: 5px solid #F59E0B !important; /* Deston indicativo de Warning */
+            border-radius: 12px !important; 
+            padding: 20px !important; 
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(245, 158, 11, 0.15) !important; 
+            color: #f8fafc !important;
+            z-index: 2147483647 !important; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+            display: flex !important;
+            flex-direction: column !important;
+            animation: slideInRight 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards !important;
+        `;
+
+        toast.innerHTML = `
+            <style>
+                @keyframes slideInRight {
+                    from { transform: translateX(120%); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
+                }
+                @keyframes slideOutRight {
+                    from { transform: translateX(0); opacity: 1; }
+                    to { transform: translateX(120%); opacity: 0; }
+                }
+                .btn-toast-close {
+                    background: #F59E0B !important; color: #0B1021 !important; border: none !important;
+                    padding: 8px 15px !important; border-radius: 6px !important; font-weight: bold !important;
+                    cursor: pointer !important; margin-top: 15px !important; align-self: flex-end !important;
+                    transition: all 0.3s ease !important;
+                }
+                .btn-toast-close:hover { background: #fbbf24 !important; transform: scale(1.05) !important; }
+            </style>
+            
+            <div style="display: flex !important; align-items: center !important; margin-bottom: 12px !important;">
+                <img src="${logoUrl}" alt="Phishing AI Shield" style="width: 40px; height: 40px; border-radius: 50%; border: 1px solid #F59E0B; margin-right: 15px; background-color: #0B1021; object-fit: cover;">
+                <h2 style="color: #F59E0B; font-size: 16px; margin: 0; font-weight: 700; text-transform: uppercase;">
+                    Aviso de Seguridad
+                </h2>
+            </div>
+            
+            <p style="font-size: 13px; color: #cbd5e1; margin: 0 0 10px 0; line-height: 1.5; text-align: left;">
+                Esta página tiene comportamientos inusuales o una política de seguridad deficiente. 
+            </p>
+
+            <div style="background: rgba(245, 158, 11, 0.05); border-radius: 6px; padding: 10px; font-size: 12px; color: #94a3b8; text-align: left; max-height: 80px; overflow-y: auto;">
+                <strong>Reporte IA:</strong><br>
+                Posible web en construcción, clon deficiente o formulario inseguro.
+            </div>
+
+            <button id="btn-cerrar-aviso" class="btn-toast-close">
+                Entendido
+            </button>
+        `;
+
+        document.body.appendChild(toast);
+
+        // Lógica para cerrar el aviso con animación
+        document.getElementById('btn-cerrar-aviso').addEventListener('click', () => {
+            toast.style.animation = "slideOutRight 0.4s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards";
+            // Esperamos a que termine la animación para eliminar el nodo
+            setTimeout(() => {
+                toast.remove();
+            }, 400);
+        });
+    }
+
+    //--------------------------------------------------------------------------------------------------------------Fin bloqueo y avisos
 
 
 
