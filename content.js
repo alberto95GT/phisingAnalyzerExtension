@@ -233,65 +233,101 @@
 
     /*
         Este bloqueo se llama desde la funcion extraerEsquemaDOM solo en caso de que la respuesta de la IA (desde el
-        background) sea que la pagina es maliciosa.
+        background) sea que la pagina es maliciosa o tenga implementacion de seguridad deficiente en cuanto al tratamiento de credenciales.
      */
 
     function ejecutarBloqueo() {
-        console.error("[Content] Alerta phising. Bloqueando interfaz.");
+        console.error("[Content] Alerta de seguridad. Bloqueando interfaz.");
 
         // Evitamos que se inyecte varias veces si hay varios formularios
-        if (document.getElementById("phishing-defense-overlay")) return;
+        if (document.getElementById("phishing-ids-overlay")) return;
+
+        // Obtenemos la ruta local segura de tu nuevo logo
+        const logoUrl = chrome.runtime.getURL("logo.png");
 
         // Bloqueamos el scroll de la página original para inmovilizar al usuario
         document.body.style.overflow = 'hidden';
 
-        // Creamos el Overlay sin destruir la web original para poder implementar el boton de escape.
-        const overlay = document.createElement('div');
-        overlay.id = "phishing-defense-overlay";
+        // Creamos el contenedor principal (Overlay difuminado)
+        let overlay = document.createElement('div');
+        overlay.id = 'phishing-ids-overlay';
 
-        // Inyectamos el bloqueo junto con el botón de omisión dentro del Overlay
-        overlay.innerHTML = `
-        <div style="position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; background-color: #0a1128 !important; z-index: 2147483647 !important; display: flex !important; flex-direction: column !important; justify-content: center !important; align-items: center !important; font-family: 'Courier New', Courier, monospace !important; text-align: center !important; padding: 20px !important; box-sizing: border-box !important;">
-        
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 16" width="120" height="120" style="shape-rendering: crispEdges; margin-bottom: 30px; filter: drop-shadow(0px 0px 15px rgba(255, 51, 51, 0.5));">
-                <path fill="#220000" d="M1,2 h12 v6 h-1 v2 h-1 v2 h-1 v2 h-1 v1 h-2 v1 h-2 v-1 h-2 v-1 h-1 v-2 h-1 v-2 h-1 v-2 h-1 v-6 z" />
-                <path fill="#ff3333" d="M2,3 h10 v5 h-1 v2 h-1 v1 h-1 v1 h-1 v1 h-2 v-1 h-1 v-1 h-1 v-1 h-1 v-2 h-1 v-5 z" />
-                <path fill="#ff8888" d="M3,4 h2 v5 h-1 v1 h-1 v-6 z" />
-            </svg>
-    
-            <h1 style="font-size: 3rem; margin: 0 0 20px 0; color: #ff4444; text-transform: uppercase; text-shadow: 4px 4px 0 #000, 6px 6px 0 #4a0000; letter-spacing: 2px; max-width: 90%; line-height: 1.2;">
-                WEB SOSPECHOSA BLOQUEADA
-            </h1>
-    
-            <p style="font-size: 1.5rem; color: #00ffcc; background-color: rgba(0, 0, 0, 0.6); padding: 20px 30px; border: 3px dashed #00ffcc; max-width: 800px; line-height: 1.6; text-shadow: 2px 2px 0 #000; margin-bottom: 40px;">
-                Sus datos son importantes, no se los regale a cualquiera.
-            </p>
-    
-            <button id="btn-bypass-phishing" style="background: none; border: none; color: #6688aa; text-decoration: underline; font-family: 'Courier New', Courier, monospace; font-size: 1rem; cursor: pointer; padding: 10px; transition: color 0.3s ease;">
-                Conozco los riesgos, quiero acceder a este sitio web
-            </button>
-    
-            <div style="margin-top: 50px; font-size: 1.2rem; color: #4477aa; animation: blink-arcade 1s infinite;">
-                [ INTERVENCIÓN DE SEGURIDAD ACTIVA ]
-            </div>
-    
-            <style>
-                @keyframes blink-arcade {
-                    0% { opacity: 1; }
-                    50% { opacity: 0; }
-                    100% { opacity: 1; }
-                }
-                #btn-bypass-phishing:hover {
-                    color: #ffffff !important;
-                }
-            </style>
-        </div>
+        // Estilos usando la paleta de colores de tu logo (Azul Noche profundo)
+        overlay.style.cssText = `
+            position: fixed !important; 
+            top: 0 !important; left: 0 !important; 
+            width: 100vw !important; height: 100vh !important; 
+            background-color: rgba(11, 16, 33, 0.90) !important; /* Azul oscuro translúcido */
+            backdrop-filter: blur(12px) !important; /* Efecto cristal / Glassmorphism */
+            z-index: 2147483647 !important; 
+            display: flex !important; align-items: center !important; justify-content: center !important; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
         `;
 
-        // Añadimos el Overlay al cuerpo de la página original
+        // Creamos la Tarjeta del Modal
+        let modal = document.createElement('div');
+        modal.style.cssText = `
+            background: linear-gradient(145deg, #131B2F 0%, #0B1021 100%) !important; 
+            border: 1px solid #00F0FF !important; /* Borde Cian Neón */
+            border-top: 5px solid #FF4D4D !important; /* Borde superior Rojo Coral (Anzuelo) */
+            border-radius: 16px !important; 
+            padding: 40px 30px !important; 
+            max-width: 500px !important; 
+            text-align: center !important; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 40px rgba(0, 240, 255, 0.15) !important; /* Resplandor Cian */
+            color: #f8fafc !important;
+        `;
+
+        // Inyectamos el contenido (Logo + Textos)
+        modal.innerHTML = `
+            <style>
+                /* Animación de latido doble (Cian y Rojo) para el logo */
+                @keyframes pulse-cyber {
+                    0% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.4), 0 0 0 0 rgba(255, 77, 77, 0.4); }
+                    70% { box-shadow: 0 0 0 15px rgba(0, 240, 255, 0), 0 0 0 30px rgba(255, 77, 77, 0); }
+                    100% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0), 0 0 0 0 rgba(255, 77, 77, 0); }
+                }
+                .bypass-btn {
+                    background: none !important; border: none !important; color: #64748b !important; 
+                    text-decoration: underline !important; font-size: 13px !important; cursor: pointer !important; 
+                    padding: 10px !important; transition: color 0.3s ease !important; margin-top: 20px !important;
+                }
+                .bypass-btn:hover { color: #f8fafc !important; }
+            </style>
+            
+            <img src="${logoUrl}" alt="Phishing AI Shield" style="width: 120px; height: 120px; border-radius: 50%; margin-bottom: 25px; animation: pulse-cyber 2s infinite; border: 2px solid #00F0FF; background-color: #0B1021; object-fit: cover;">
+            
+            <h1 style="color: #FF4D4D; font-size: 26px; margin: 0 0 10px 0; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">
+                CONEXIÓN INTERCEPTADA
+            </h1>
+            
+            <h2 style="color: #00F0FF; font-size: 17px; margin: 0 0 25px 0; font-weight: 500;">
+                Riesgo Crítico de Exfiltración de Datos
+            </h2>
+            
+            <p style="font-size: 15px; color: #cbd5e1; margin-bottom: 25px; line-height: 1.6; text-align: justify;">
+                Nuestra Inteligencia Artificial ha suspendido la navegación. Esta página representa una amenaza severa para sus datos financieros o credenciales.
+            </p>
+
+            <div style="background: rgba(0, 240, 255, 0.05); border-radius: 8px; padding: 15px; margin-bottom: 25px; font-size: 13px; color: #94a3b8; text-align: left; border-left: 3px solid #00F0FF;">
+                <strong>Diagnóstico del Sistema:</strong><br>
+                Esto puede deberse a un intento de suplantación de identidad (<em>Phishing</em>) o a una <strong>mala implementación de seguridad</strong> por parte de los creadores del sitio web, dejando su información expuesta a terceros.
+            </div>
+            
+            <p style="font-size: 14px; color: #ffffff; font-weight: bold; margin-bottom: 5px;">
+                Por su seguridad, no introduzca ningún dato aquí.
+            </p>
+
+            <button id="btn-bypass-phishing" class="bypass-btn">
+                Conozco los riesgos, ignorar advertencia y acceder
+            </button>
+        `;
+
+        // Ensamblamos el overlay
+        overlay.appendChild(modal);
         document.body.appendChild(overlay);
 
-        // Le damos la funcionalidad el boton de escape.
+        // Funcionalidad del boton de escape
         document.getElementById('btn-bypass-phishing').addEventListener('click', () => {
             console.warn("[Content] El usuario asume el riesgo. Retirando el bloqueo...");
 

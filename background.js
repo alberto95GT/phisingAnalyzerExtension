@@ -189,7 +189,8 @@ Analiza el 'titulo' y 'textoCercano'. Si identificas claramente a qué entidad p
  NIVEL 1: CRÍTICO 
 1. Suplantación: Si afirma ser una marca conocida PERO la 'urlActual' NO es su dominio oficial, VEREDICTO: BLOQUEAR.
 2. Exfiltración: Si el 'destinoDatos' apunta a una IP cruda (ej. 192.168.x.x) o a un servicio de recolección de formularios sin relación con la web, VEREDICTO: BLOQUEAR.
-3. Fraude Financiero (Carding / Magecart): Si el 'textoCercano' pide explícitamente datos de Tarjeta de Crédito (CVV, caducidad, número de tarjeta), VEREDICTO: BLOQUEAR SIEMPRE, a menos que el dominio de la 'urlActual' pertenezca EXPLÍCITAMENTE a un Banco o Pasarela de Pago mundial verificada (como Stripe, PayPal, Redsys, Adyen, Square, etc.). Un dominio normal solicitando CVV directamente en su HTML es un fraude, un hackeo severo (Magecart) o una mala práctica digna de bloquearse.
+3. Fraude Financiero (Carding / Magecart): Si el 'textoCercano' solicita datos de Tarjeta de Crédito, VEREDICTO: BLOQUEAR SIEMPRE. 
+[EXCEPCIÓN ÚNICA]: Solo puedes PERMITIR si el dominio de la 'urlActual' (el que aloja la web, NO el destinoDatos) pertenece EXPLÍCITAMENTE a la lista de pasarelas mundiales verificadas (Stripe, PayPal, Redsys, Adyen, Oppwa). Si la 'urlActual' es un dominio normal/desconocido y está pidiendo el CVV en su propio HTML (aunque luego lo envíe a oppwa.com), es un fraude de Abuso de API. BLOQUEAR INMEDIATAMENTE.
 
  NIVEL 2: SECUNDARIO 
 Si no reconoces la entidad y NO se piden tarjetas de crédito:

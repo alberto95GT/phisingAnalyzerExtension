@@ -2,6 +2,12 @@
   "manifest_version": 3,
   "name": "Phising AI Analyzer Extension",
   "version": "1.0",
+  "icons": {
+    "16": "logo.png",
+    "32": "logo.png",
+    "48": "logo.png",
+    "128": "logo.png"
+  },
   "permissions": [
     "webNavigation",
     "scripting",
@@ -16,6 +22,12 @@
   },
   "options_ui": {
     "page": "options.html",
-    "open_in_tab": false
-  }
+    "open_in_tab": true
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["logo.png"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

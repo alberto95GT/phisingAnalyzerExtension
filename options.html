@@ -4,31 +4,171 @@
     <meta charset="UTF-8">
     <title>Configuración - Phishing AI Analyzer</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; background-color: #f5f6f8; color: #333; }
-        .container { max-width: 500px; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin: auto; }
-        h2 { margin-top: 0; color: #1a73e8; }
-        p { font-size: 14px; color: #5f6368; line-height: 1.5; }
-        .form-group { margin-bottom: 20px; text-align: left; }
-        label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 14px; }
-        input[type="password"] { width: 100%; padding: 10px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
-        button { background-color: #1a73e8; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
-        button:hover { background-color: #1557b0; }
-        .status { margin-top: 15px; font-size: 14px; font-weight: bold; }
+        /* Paleta de colores de Ciberseguridad */
+        :root {
+            --bg-dark: #0B1021;
+            --bg-darker: #060913;
+            --card-bg: #131B2F;
+            --neon-cyan: #00F0FF;
+            --neon-red: #FF4D4D;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --input-bg: rgba(0, 240, 255, 0.05);
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text-main);
+            /* Fondo radial para dar profundidad a la pantalla completa */
+            background: radial-gradient(circle at 50% 0%, #1a2542 0%, var(--bg-darker) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Animación del radar */
+        @keyframes pulse-cyber {
+            0% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.4), 0 0 0 0 rgba(255, 77, 77, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(0, 240, 255, 0), 0 0 0 30px rgba(255, 77, 77, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0), 0 0 0 0 rgba(255, 77, 77, 0); }
+        }
+
+        .logo {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            margin-bottom: 30px;
+            animation: pulse-cyber 2s infinite;
+            border: 2px solid var(--neon-cyan);
+            background-color: var(--bg-dark);
+            object-fit: cover;
+        }
+
+        .container {
+            background: linear-gradient(145deg, var(--card-bg) 0%, var(--bg-dark) 100%);
+            border: 1px solid var(--neon-cyan);
+            border-top: 5px solid var(--neon-red);
+            padding: 50px 60px;
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 50px rgba(0, 240, 255, 0.15);
+            width: 100%;
+            max-width: 600px; /* Tarjeta más ancha */
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: var(--neon-cyan);
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        p.subtitle {
+            font-size: 15px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 35px;
+        }
+
+        .form-group {
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-size: 13px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="password"], input[type="text"] {
+            width: 100%;
+            padding: 16px;
+            background-color: var(--input-bg);
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+            color: var(--text-main);
+            outline: none;
+            font-family: monospace;
+            transition: all 0.3s ease;
+            letter-spacing: 2px; /* Mejora visual al escribir la clave */
+        }
+
+        input[type="password"]:focus, input[type="text"]:focus {
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+            background-color: rgba(0, 240, 255, 0.1);
+        }
+
+        input::placeholder {
+            color: #475569;
+            letter-spacing: normal;
+        }
+
+        button {
+            width: 100%;
+            background-color: var(--neon-cyan);
+            color: var(--bg-dark);
+            border: none;
+            padding: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 800;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 240, 255, 0.3);
+        }
+
+        button:hover {
+            background-color: #ffffff;
+            box-shadow: 0 6px 20px rgba(255, 255, 255, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .status {
+            margin-top: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            min-height: 20px;
+            padding: 12px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.3);
+        }
     </style>
 </head>
 <body>
+
 <div class="container">
-    <h2>Configuración de Seguridad</h2>
-    <p>Para que el analizador de IA funcione, necesitas introducir tu clave API de Gemini. Puedes obtener una de forma gratuita en Google AI Studio.</p>
+    <img src="logo.png" alt="Phishing AI Analyzer Logo" class="logo">
+
+    <h2>Panel de Configuración</h2>
+    <p class="subtitle">Conecta el núcleo del analizador introduciendo tu API Key de Gemini. Este sistema evalúa amenazas en tiempo real.</p>
 
     <div class="form-group">
-        <label for="apiKey">Gemini API Key:</label>
-        <input type="password" id="apiKey" placeholder="Introduce tu clave">
+        <label for="apiKey">Clave API de Gemini:</label>
+        <input type="password" id="apiKey" placeholder="AIzaSyA...">
     </div>
 
-    <button id="guardar">Guardar Configuración</button>
+    <button id="guardar">Vincular Motor IA</button>
+
     <div id="estado" class="status"></div>
 </div>
+
 <script src="options.js"></script>
 </body>
 </html>
