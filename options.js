@@ -68,6 +68,9 @@ document.getElementById('guardar').addEventListener('click', async () => {
             throw new Error(chrome.runtime.lastError.message);
         }
 
+        //Limpiamos el posible estado de error en el icono.
+        chrome.action.setBadgeText({text: ''});
+
         estado.style.color = "green";
         estado.innerText = "Configuración verificada y guardada correctamente.";
 

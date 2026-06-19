@@ -176,9 +176,11 @@
             { accion: "analizarDOM", datos: esquemaParaIA },
             (respuesta) => {
                 if (respuesta && respuesta.veredicto === "BLOQUEAR"){
-                    ejecutarBloqueo();
+                    ejecutarBloqueo(respuesta.explicacion);
                 } else if (respuesta && respuesta.veredicto === "AVISO") {
-                    ejecutarAviso();
+                    ejecutarAviso(respuesta.explicacion);
+                } else if (respuesta.veredicto === "ERROR_API") {
+                    ejecutarErrorAPI(respuesta.explicacion);
                 }
             }
         );
@@ -240,9 +242,11 @@
         background) sea que la pagina es maliciosa o tenga implementacion de seguridad deficiente en cuanto al tratamiento de credenciales.
         Por otro lado el aviso se llama desde la misma funcion, y se lanzara en casos en los que no estemos la 100% seguros de la malicia
         de la página, pero detectamos una seguridad deficiente por lo que preferimos un simple aviso al usuario en lugar de un bloqueo completo.
+        El errorAPI se ejecutará cuando haya ausencia o error en la configuración de la API, mostrando un mensaje flotante que permite abrir
+        la página de configuración en caso de ser necesario.
      */
 
-    function ejecutarBloqueo() {
+    function ejecutarBloqueo(motivo) {
         console.error("[Content] Alerta de seguridad. Bloqueando interfaz.");
 
         // Evitamos que se inyecte varias veces si hay varios formularios
@@ -317,7 +321,7 @@
 
             <div style="background: rgba(0, 240, 255, 0.05); border-radius: 8px; padding: 15px; margin-bottom: 25px; font-size: 13px; color: #94a3b8; text-align: left; border-left: 3px solid #00F0FF;">
                 <strong>Diagnóstico del Sistema:</strong><br>
-                Esto puede deberse a un intento de suplantación de identidad (<em>Phishing</em>) o a una <strong>mala implementación de seguridad</strong> por parte de los creadores del sitio web, dejando su información expuesta a terceros.
+                ${motivo || 'Intento de robo de credenciales o fraude financiero.'} </div>
             </div>
             
             <p style="font-size: 14px; color: #ffffff; font-weight: bold; margin-bottom: 5px;">
@@ -350,7 +354,7 @@
     }
 
 
-    function ejecutarAviso() {
+    function ejecutarAviso(motivo) {
         console.warn("[Content] Alerta de seguridad moderada. Mostrando Toast de Aviso.");
 
         // Evitamos inyectar varios avisos simultáneos
@@ -414,7 +418,7 @@
 
             <div style="background: rgba(245, 158, 11, 0.05); border-radius: 6px; padding: 10px; font-size: 12px; color: #94a3b8; text-align: left; max-height: 80px; overflow-y: auto;">
                 <strong>Reporte IA:</strong><br>
-                Posible web en construcción, clon deficiente o formulario inseguro.
+                ${motivo || 'Posible web en construcción, clon deficiente o formulario inseguro.'} </div>
             </div>
 
             <button id="btn-cerrar-aviso" class="btn-toast-close">
@@ -431,6 +435,60 @@
             setTimeout(() => {
                 toast.remove();
             }, 400);
+        });
+    }
+
+
+    function ejecutarErrorAPI(mensaje) {
+        if (document.getElementById("phishing-ids-apierror")) return;
+
+        const logoUrl = chrome.runtime.getURL("logo.png");
+
+        let toast = document.createElement('div');
+        toast.id = 'phishing-ids-apierror';
+
+        toast.style.cssText = `
+            position: fixed !important; top: 20px !important; right: 20px !important; width: 350px !important; 
+            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%) !important; /* Gris Pizarra */
+            border: 1px solid #ef4444 !important; border-left: 5px solid #ef4444 !important; 
+            border-radius: 12px !important; padding: 20px !important; 
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(239, 68, 68, 0.15) !important; 
+            color: #f8fafc !important; z-index: 2147483647 !important; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+            display: flex !important; flex-direction: column !important;
+            animation: slideInRight 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards !important;
+        `;
+
+        toast.innerHTML = `
+            <div style="display: flex !important; align-items: center !important; margin-bottom: 12px !important;">
+                <img src="${logoUrl}" style="width: 35px; height: 35px; border-radius: 50%; filter: grayscale(100%); border: 1px solid #ef4444; margin-right: 15px; object-fit: cover;" alt="Logo">
+                <h2 style="color: #ef4444; font-size: 15px; margin: 0; font-weight: 700; text-transform: uppercase;">
+                    Motor IA Desconectado
+                </h2>
+            </div>
+            <p style="font-size: 13px; color: #cbd5e1; margin: 0 0 15px 0; line-height: 1.4;">
+                ${mensaje || 'Tu clave de Gemini AI no es válida o ha caducado. Estás navegando sin protección.'}
+            </p>
+            <div style="display: flex; gap: 10px;">
+                <button id="btn-fix-api" style="flex: 1; background: #ef4444; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer;">
+                    Configurar Clave
+                </button>
+                <button id="btn-close-api-error" style="background: transparent; color: #94a3b8; border: 1px solid #64748b; padding: 8px 12px; border-radius: 6px; cursor: pointer;">
+                    Ignorar
+                </button>
+            </div>
+        `;
+
+        document.body.appendChild(toast);
+
+        // Abrir las opciones y cerrar el toast
+        document.getElementById('btn-fix-api').addEventListener('click', () => {
+            chrome.runtime.sendMessage({ accion: "abrirOpciones" });
+            toast.remove();
+        });
+
+        document.getElementById('btn-close-api-error').addEventListener('click', () => {
+            toast.remove();
         });
     }
 

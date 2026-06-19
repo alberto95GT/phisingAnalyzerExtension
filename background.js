@@ -134,10 +134,9 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(manejarNavegacion);
     Así, por cada pestaña que tenemos abierta tenemos un rastreo corto de los dominios visitados, que se le pasará al agente cuando analice
     una pagina sospechosa.
  */
-
 const historialPestanas = new Map();
 
-// Cuando se completa la carga de una página
+// Cuando se comienza la carga de una página (onCommitted en lugar de onCompleted ya que sino no se almacenarían las redirecciones)
 chrome.webNavigation.onCommitted.addListener((details) => {
     if (details.frameId === 0) {
         const tabId = details.tabId;
@@ -160,7 +159,7 @@ chrome.webNavigation.onCommitted.addListener((details) => {
         }
 
         historialPestanas.set(tabId, historial);
-        console.log(`[Background] Historial Tab ${tabId} actualizado:`, historial);
+        //console.log(`[Background] Historial de pestaña ${tabId} actualizado:`, historial);
     }
 });
 
@@ -181,6 +180,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.accion === "todoLimpio") {
         console.log(`[Background] Análisis completado. Zona segura: ${request.motivo}.`);
         return false; // Cerramos la comunicación
+    }
+
+    if (request.accion === "abrirOpciones") {
+        chrome.runtime.openOptionsPage();
     }
 
     if (request.accion === "omitirBloqueo") {
@@ -210,10 +213,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             const api_key = resultado.geminiApiKey;
 
             if (!api_key) {
-                console.error("[Background] Error: API Key de Gemini no configurada.");
-                sendResponse({ veredicto: "PERMITIR", error: "Falta configuración" });
-                // Abrimos la página de opciones automáticamente para que proporcione la api key valida.
-                chrome.runtime.openOptionsPage();
+                console.error("[Background] Error: API Key no configurada.");
+                chrome.action.setBadgeBackgroundColor({color: '#EF4444'}); // Rojo
+                chrome.action.setBadgeText({text: 'ERR'}); // Texto en el icono
+                sendResponse({ veredicto: "ERROR_API", explicacion: "Falta configurar la Clave API." });
                 return;
             }
 
@@ -280,15 +283,28 @@ EXPLICACION: <Tu razonamiento técnico, indicando el Paso y Regla exacta>
                     // 1. Imprimimos la respuesta CRUD de Google para depurar
                     console.log("[Background] Respuesta de Google API:", datos);
 
-                    // 2. ¿Nos devolvió un error la API?
+                    // 2. Si la clave de la API está configurada pero es invalida
                     if (datos.error) {
-                        console.error("[Background] ERROR DE LA API DE GOOGLE:", datos.error.message);
-                        // Por seguridad, si nuestra IA falla, no bloqueamos la navegación del usuario
-                        sendResponse({ veredicto: "PERMITIR" });
-                        return; // Cortamos la ejecución aquí
+                        console.error("[Background] ERROR DE LA API DE GEMINI:", datos.error.message);
+                        chrome.action.setBadgeBackgroundColor({color: '#EF4444'});
+                        chrome.action.setBadgeText({text: 'ERR'});
+                        sendResponse({ veredicto: "ERROR_API", explicacion: "La API Key ha caducado o es inválida." });
+                        return;
                     }
 
-                    // 3. ¿Existe la respuesta esperada?
+                    /*
+                        Explico esta linea:
+                        Si el usuario no configura su API_KEY, en la línea 211 pondremos el icono de la extension en rojo con un error.
+                        Ahí, cortamos la evaluación de esta acción y mostramos el aviso de error, que permite al usuario configurar de nuevo
+                        su api key. Si la configura, entonces esa linea 211 no actuará, pero puede ser que la que introduzca es inválida
+                        (sin hacer caso a la prueba que le hacemos al options, o bien porque le caduco), entonces este segundo if de la linea 283
+                        comprueba si la respuesta de la API es buena. Si es buena, está bien configurada, pero si recibimos un error entonces
+                        requiere atención, por lo que volvemos a lanzar el aviso. En caso de ser buena, el error en el icono sigue siendo mostrado
+                        por lo cual necesitamos limpiarlo y lo hacemos con esta linea de abajo.
+                     */
+                    chrome.action.setBadgeText({text: ''});
+
+                    // 3. Si existe la respuesta esperada actuamos segun el veredicto
                     if (datos.candidates && datos.candidates.length > 0) {
                         // Extraemos el texto
                         const veredictoGemini = datos.candidates[0].content.parts[0].text.trim().toUpperCase();
@@ -296,14 +312,15 @@ EXPLICACION: <Tu razonamiento técnico, indicando el Paso y Regla exacta>
 
                         // Usamos .includes() por si la IA añade algún punto final o salto de línea oculto
                         if (veredictoGemini.includes("BLOQUEAR")) {
-                            sendResponse({ veredicto: "BLOQUEAR" });
+                            sendResponse({ veredicto: "BLOQUEAR", explicacion: veredictoGemini });
                         } else if (veredictoGemini.includes("AVISO")) {
-                            sendResponse({ veredicto: "AVISO" });
+                            sendResponse({ veredicto: "AVISO", explicacion: veredictoGemini });
                         } else{
                             sendResponse({ veredicto: "PERMITIR" });
                         }
                     } else {
                         console.warn("[Background] La API respondió bien, pero el formato es inesperado.");
+                        //Este caso sería culpa o bien de nuestro prompt o de la mala actuacion del agente, ya que le especficamos que su respuesta siga el estilo que necesitamos.
                         sendResponse({ veredicto: "PERMITIR" });
                     }
                 })

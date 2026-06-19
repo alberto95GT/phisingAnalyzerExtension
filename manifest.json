@@ -8,6 +8,10 @@
     "48": "logo.png",
     "128": "logo.png"
   },
+  "action": {
+    "default_icon": "logo.png",
+    "default_title": "Phishing AI Analyzer"
+  },
   "permissions": [
     "webNavigation",
     "scripting",
