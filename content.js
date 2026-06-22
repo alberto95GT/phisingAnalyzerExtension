@@ -6,14 +6,14 @@
 
     try {
         if (window.phishingAgentInyectado) {
-            console.log("[Content] Agente ya inyectado, abortando segunda ejecución.");
+            console.log("[Content] Agente previamente inyectado, abortando segunda ejecución.");
             return;
         }
         // Marca que el agente ha sido inyectado para evitar duplicados
         window.phishingAgentInyectado = true;
     } catch (e) {
-        // Si por algun motivo no podemos tocar window, no rompemos la pagina
-        console.warn('[Content] No se pudo establecer flag de inyección:', e);
+        // Si por algun motivo no podemos tocar window
+        console.error('[Content] No se pudo establecer flag de inyección:', e);
     }
 
     //--------------------------------------------------------------------------------------------------------------Fin de la protección
@@ -78,6 +78,7 @@
             const className = typeof input.className === 'string' ? input.className : "";
 
             if (regexAtributos.test(`${id} ${name} ${className}`)) {
+                console.log(`[Content] Dato sensible detectado en los atributos del input: "${id} ${name} ${className}"`);
                 return input;
             }
 
@@ -86,6 +87,7 @@
             const ariaLabel = input.getAttribute('aria-label') || "";
 
             if (regexTextos.test(`${placeholder} ${ariaLabel}`)) {
+                console.log(`[Content] Dato sensible detectado en los atributos visuales del input: "${placeholder} ${ariaLabel}"`);
                 return input;
             }
 
@@ -107,7 +109,7 @@
                 const textoNormalizado = textoContexto.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
                 if (regexTextos.test(textoNormalizado)) {
-                    console.warn(`[Content] Dato sensible detectado en el contexto: "${textoContexto.substring(0, 30)}..."`);
+                    console.log(`[Content] Dato sensible detectado en el contexto de los inputs: "${textoContexto.substring(0, 30)}..."`);
                     return input;
                 }
             }
@@ -170,7 +172,7 @@
             estadisticasLinks: { totales: enlaces.length, vaciosOFalsos: linksVacios, apuntanAfuera: linksExternos }
         };
 
-        console.log("[Content] Esquema listo para la IA:", esquemaParaIA);
+        console.log("[Content] Esquema listo para analizar:", esquemaParaIA);
 
         chrome.runtime.sendMessage(
             { accion: "analizarDOM", datos: esquemaParaIA },
@@ -192,7 +194,7 @@
 
     // Funcion para la vigilancia del DOM de forma dinamica.
     function iniciarBusqueda() {
-        console.log("[Content] Iniciando vigilancia del DOM...");
+        console.log("[Content] Iniciando vigilancia de la página...");
 
         // Si nos despiertan de nuevo por cambio dentro de un SPA (single page application), matamos los procesos antiguos primero
         if (vigia) vigia.disconnect();
@@ -202,7 +204,7 @@
         let inputInicial = buscarInputsSensibles();
 
         if (inputInicial) {
-            console.log("[Content] Input de dato sensible detectado en la carga inicial/cambio de ruta.");
+            console.log("[Content] Input de datos sensibles detectado en el DOM.");
             extraerEsquemaDOM(inputInicial);
             return;
         }
@@ -211,7 +213,7 @@
             // Usamos el buscador en tiempo real
             let inputDinamico = buscarInputsSensibles();
             if (inputDinamico) {
-                console.log("[Content] Input de dato sensible detectado dinámicamente.");
+                console.log("[Content] Input de datos sensibles detectado en el DOM.");
                 observer.disconnect();
                 clearTimeout(temporizador);
 
@@ -339,7 +341,7 @@
 
         // Funcionalidad del boton de escape
         document.getElementById('btn-bypass-phishing').addEventListener('click', () => {
-            console.warn("[Content] El usuario asume el riesgo. Retirando el bloqueo...");
+            console.warn("[Content] El usuario asume el riesgo de acceder a la web. Retirando el bloqueo...");
 
             // Informamos al background de que el usuario ha ignorado la alerta
             chrome.runtime.sendMessage({
@@ -355,7 +357,7 @@
 
 
     function ejecutarAviso(motivo) {
-        console.warn("[Content] Alerta de seguridad moderada. Mostrando Toast de Aviso.");
+        console.warn("[Content] Alerta de seguridad moderada. Mostrando notificacion de aviso.");
 
         // Evitamos inyectar varios avisos simultáneos
         if (document.getElementById("phishing-ids-warning")) return;
@@ -440,6 +442,9 @@
 
 
     function ejecutarErrorAPI(mensaje) {
+        console.error("[Content] Fallo de la API KEY: No configurada o inválida. Mostrando aviso por pantalla.");
+
+
         if (document.getElementById("phishing-ids-apierror")) return;
 
         const logoUrl = chrome.runtime.getURL("logo.png");
@@ -507,9 +512,9 @@
      */
 
 
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    chrome.runtime.onMessage.addListener((request) => {
         if (request.accion === "reactivarVigilancia") {
-            console.warn("[Content] Cambio de ruta interno detectado. Reiniciando vigilancia...");
+            console.log("[Content] Cambio de ruta interno detectado. Reiniciando vigilancia.");
             iniciarBusqueda();
         }
     });

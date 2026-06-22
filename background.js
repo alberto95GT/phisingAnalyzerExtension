@@ -6,17 +6,17 @@ const URL_LISTA_BLANCA = "https://raw.githubusercontent.com/alberto95GT/phisingA
 
 async function actualizarListaBlanca() {
     try {
-        console.log("[Background] Buscando actualizaciones de la Lista Blanca...");
+        console.log("[Background] Buscando actualizaciones de la lista blanca de dominios...");
         const respuesta = await fetch(URL_LISTA_BLANCA);
         const datos = await respuesta.json();
 
         if (datos && datos.dominios_seguros) {
             // Guardamos el array en la memoria interna (caché) del navegador
             await chrome.storage.local.set({ listaSegura: datos.dominios_seguros });
-            console.log(`[Background] Lista Blanca actualizada. ${datos.dominios_seguros.length} dominios cargados en memoria.`);
+            console.log(`[Background] Lista blanca actualizada. ${datos.dominios_seguros.length} dominios cargados en memoria.`);
         }
     } catch (error) {
-        console.error("[Background] Error al actualizar la Lista Blanca:", error);
+        console.error("[Background] Error al actualizar la lista blanca:", error);
         // Si no hay internet, la extensión seguirá usando la última lista guardada
     }
 }
@@ -83,11 +83,11 @@ function manejarNavegacion(details) {
             const listaBlanca = memoria.listaSegura || [];
 
             if (listaBlanca.includes(dominio)) {
-                console.log(`[Background] ${dominio} es seguro (Memoria Local). Todo OK.`);
+                console.log(`[Background] ${dominio} es seguro, se encuentra en la lista blanca. `);
                 return;
             }
 
-            console.log(`[Background] ${dominio} No es frecuente. Analizando ruta: ${url.pathname}`);
+            console.log(`[Background] ${dominio} no es frecuente. Analizando ruta: ${url.pathname}`);
 
             // Intentamos despertar al Content Script si ya está presente (SPA).
             // Si sendMessage falla con un error tipo "Receiving end does not exist" o similar
@@ -106,15 +106,15 @@ function manejarNavegacion(details) {
                         chrome.scripting.executeScript({
                             target: { tabId: tabId },
                             files: ["content.js"]
-                        }).catch(e => console.error("[Background] Error al inyectar script:", e));
+                        }).catch(e => console.error("[Background] Error al inyectar script content:", e));
                     } else {
                         // No inyectamos para evitar falsos positivos. Logueamos para depuración.
-                        console.warn("[Background] sendMessage falló pero no parece ser 'no receptor'. No se inyectará. Error:", msg);
+                        console.log("[Background] el envío al content falló pero no parece ser por ausencia del mismo. No se inyectará otro. Error:", msg);
                     }
                 });
 
         } catch (error) {
-            console.error('[Background] Error en manejarNavegacion:', error);
+            console.error('[Background] Error en la lectura de la pagina (funcion manejarNavegacion):', error);
         }
 
     }, ESPERA_ANTIREBOTE);
@@ -187,7 +187,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     if (request.accion === "omitirBloqueo") {
-        console.warn(`[Background] Auditoria: El usuario ha forzado el acceso al dominio bloqueado: ${request.dominio}`);
+        console.warn(`[Background] El usuario ha forzado el acceso al dominio bloqueado: ${request.dominio}`);
         // Posible futura implementación, logeando este evento para conteo de dominios mal bloqueados o un simple salto imprudente.
         return false;
     }
@@ -199,7 +199,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const tabId = sender.tab.id;
         request.datos.cadenaRedirecciones = historialPestanas.get(tabId) || [];
 
-        console.log("Datos para la IA:", request.datos);
+        console.log("[Background] Datos para la IA:", request.datos);
 
         // Clave de la API de Gemini almacenada en la memoria sincronizada del navegador.
         chrome.storage.sync.get(['geminiApiKey'], (resultado) => {
@@ -280,8 +280,8 @@ EXPLICACION: <Tu razonamiento técnico, indicando el Paso y Regla exacta>
             })
                 .then(respuesta => respuesta.json())
                 .then(datos => {
-                    // 1. Imprimimos la respuesta CRUD de Google para depurar
-                    console.log("[Background] Respuesta de Google API:", datos);
+                    // 1. Imprimimos la respuesta para depurar
+                    console.log("[Background] Respuesta de Gemini API:", datos);
 
                     // 2. Si la clave de la API está configurada pero es invalida
                     if (datos.error) {
