@@ -140,6 +140,108 @@
             transform: translateY(-2px);
         }
 
+        /* --- ESTILOS DEL TOOLTIP (INFO API KEY) --- */
+        .label-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+
+        .label-container label {
+            margin-bottom: 0; /* Quitamos el margen porque ahora lo gestiona el contenedor */
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-flex;
+        }
+
+        .info-icon {
+            background-color: var(--input-bg);
+            border: 1px solid var(--neon-cyan);
+            color: var(--neon-cyan);
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: help;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .tooltip:hover .info-icon {
+            background-color: var(--neon-cyan);
+            color: var(--bg-dark);
+            box-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+        }
+
+        .tooltip-text {
+            visibility: hidden;
+            opacity: 0;
+            width: 260px;
+            background-color: var(--card-bg);
+            color: var(--text-muted);
+            text-align: left;
+            border-radius: 8px;
+            border: 1px solid #1e293b;
+            padding: 15px;
+            position: absolute;
+            z-index: 10;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(0);
+            margin-bottom: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+            font-size: 12.5px;
+            line-height: 1.5;
+            text-transform: none;
+            letter-spacing: normal;
+            transition: all 0.3s ease;
+        }
+
+        /* Triángulo apuntando hacia abajo */
+        .tooltip-text::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -6px;
+            border-width: 6px;
+            border-style: solid;
+            border-color: #1e293b transparent transparent transparent;
+        }
+
+        /* PUENTE INVISIBLE: Evita que el menú se cierre al mover el ratón hacia el enlace */
+        .tooltip-text::before {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            height: 15px;
+            background: transparent;
+        }
+
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+            transform: translateX(-50%) translateY(-5px);
+        }
+
+        .tooltip-text a {
+            color: var(--neon-cyan);
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .tooltip-text a:hover {
+            text-decoration: underline;
+        }
+
         .status {
             margin-top: 25px;
             font-size: 14px;
@@ -160,7 +262,17 @@
     <p class="subtitle">Conecta el núcleo del analizador introduciendo tu API Key de Gemini. Este sistema evalúa amenazas en tiempo real.</p>
 
     <div class="form-group">
-        <label for="apiKey">Clave API de Gemini:</label>
+        <div class="label-container">
+            <label for="apiKey">Clave API de Gemini:</label>
+
+            <div class="tooltip">
+                <span class="info-icon">?</span>
+                <div class="tooltip-text">
+                    La API Key es un código privado y gratuito que permite a tu navegador conectarse con la Inteligencia Artificial.<br><br>
+                    Puedes obtener la tuya pulsando en <strong>"Create API Key"</strong> dentro de <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>.
+                </div>
+            </div>
+        </div>
         <input type="password" id="apiKey" placeholder="AIzaSyA...">
     </div>
 
