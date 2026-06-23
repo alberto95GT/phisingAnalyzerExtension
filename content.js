@@ -19,6 +19,35 @@
     //--------------------------------------------------------------------------------------------------------------Fin de la protección
 
 
+
+    //--------------------------------------------------------------------------------------------------------------Actualizacion del estado para el popup
+
+    /*
+        Definimos una variable global para almacenar el estado en el que nos encontramos, ademas de una funcion que se encarga de establecer
+        nuevo estado en caso de cambio y notifica al popup.
+     */
+
+    // Estado global, inicialmente vigilando.
+    let estadoActual = "VIGILANDO";
+
+    function setEstado(nuevoEstado) {
+        estadoActual = nuevoEstado;
+        // Emitimos el cambio al popup.
+        chrome.runtime.sendMessage({ accion: "estadoActualizado", estado: estadoActual })
+            .then(() => {})
+            .catch((error) => {
+                // Solo silenciamos el error si es porque el popup está cerrado
+                const msg = error.message || String(error);
+                if (!msg.includes("Receiving end does not exist")) {
+                    console.error("[Content] Fallo crítico al actualizar estado hacia el popup:", error);
+                }
+            });
+    }
+
+    //--------------------------------------------------------------------------------------------------------------Fin popup
+
+
+
     //--------------------------------------------------------------------------------------------------------------Funciones para la extraccion del DOM
 
     /*
@@ -178,11 +207,17 @@
             { accion: "analizarDOM", datos: esquemaParaIA },
             (respuesta) => {
                 if (respuesta && respuesta.veredicto === "BLOQUEAR"){
+                    setEstado("PELIGRO");
                     ejecutarBloqueo(respuesta.explicacion);
                 } else if (respuesta && respuesta.veredicto === "AVISO") {
+                    setEstado("PRECAUCION");
                     ejecutarAviso(respuesta.explicacion);
-                } else if (respuesta.veredicto === "ERROR_API") {
+                } else if (respuesta && respuesta.veredicto === "ERROR_API") {
+                    setEstado("ERROR_API");
                     ejecutarErrorAPI(respuesta.explicacion);
+                } else {   //Si no es ninguno de los casos previos es que se ha analizado y no hay riesgo.
+                    console.log("[Content] Esquema analizado y validado como seguro. ")
+                    setEstado("SEGURO_ANALIZADO");
                 }
             }
         );
@@ -195,6 +230,7 @@
     // Funcion para la vigilancia del DOM de forma dinamica.
     function iniciarBusqueda() {
         console.log("[Content] Iniciando vigilancia de la página...");
+        setEstado("VIGILANDO");
 
         // Si nos despiertan de nuevo por cambio dentro de un SPA (single page application), matamos los procesos antiguos primero
         if (vigia) vigia.disconnect();
@@ -205,6 +241,7 @@
 
         if (inputInicial) {
             console.log("[Content] Input de datos sensibles detectado en el DOM.");
+            setEstado("ANALIZANDO");
             extraerEsquemaDOM(inputInicial);
             return;
         }
@@ -214,6 +251,7 @@
             let inputDinamico = buscarInputsSensibles();
             if (inputDinamico) {
                 console.log("[Content] Input de datos sensibles detectado en el DOM.");
+                setEstado("ANALIZANDO");
                 observer.disconnect();
                 clearTimeout(temporizador);
 
@@ -226,6 +264,7 @@
         temporizador = setTimeout(() => {
             if (vigia) vigia.disconnect();
             console.log("[Content] Fin de la vigilancia (8s): No se detectó ninguna huella de login.");
+            setEstado("SEGURO_SIN_INPUTS");
             chrome.runtime.sendMessage({ accion: "todoLimpio", motivo: "Sin huellas tras 8s" });
         }, 8000);
     }
@@ -414,7 +453,11 @@
                 </h2>
             </div>
             
-            <p style="font-size: 13px; color: #cbd5e1; margin: 0 0 10px 0; line-height: 1.5; text-align: left;">
+            <p style="
+            font-size: 13px; 
+            color: #cbd5e1; 
+            margin: 0 0 10px 0; 
+            line-height: 1.5; text-align: left;">
                 Esta página tiene comportamientos inusuales o una política de seguridad deficiente. 
             </p>
 
@@ -431,13 +474,23 @@
         document.body.appendChild(toast);
 
         // Lógica para cerrar el aviso con animación
-        document.getElementById('btn-cerrar-aviso').addEventListener('click', () => {
+        const cierreAviso = () => {
             toast.style.animation = "slideOutRight 0.4s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards";
-            // Esperamos a que termine la animación para eliminar el nodo
-            setTimeout(() => {
-                toast.remove();
-            }, 400);
+            setTimeout(() => toast.remove(), 400);
+        };
+
+        // Cierre manual
+        document.getElementById('btn-cerrar-aviso').addEventListener('click', () => {
+            clearTimeout(autoCloseTimer); // Cancelamos el temporizador si lo cierra a mano
+            cierreAviso();
         });
+
+        // Cierre automático a los 15 segundos
+        const autoCloseTimer = setTimeout(() => {
+            if (document.body.contains(toast)) {
+                cierreAviso();
+            }
+        }, 15000);
     }
 
 
@@ -465,6 +518,19 @@
         `;
 
         toast.innerHTML = `
+            <style>
+                @keyframes slideOutRightAPI {
+                    from { transform: translateX(0); opacity: 1; }
+                    to { transform: translateX(120%); opacity: 0; }
+                }
+                
+                @keyframes slideInRight {
+                    from { transform: translateX(120%); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
+                }
+            
+            </style>
+            </style>
             <div style="display: flex !important; align-items: center !important; margin-bottom: 12px !important;">
                 <img src="${logoUrl}" style="width: 35px; height: 35px; border-radius: 50%; filter: grayscale(100%); border: 1px solid #ef4444; margin-right: 15px; object-fit: cover;" alt="Logo">
                 <h2 style="color: #ef4444; font-size: 15px; margin: 0; font-weight: 700; text-transform: uppercase;">
@@ -486,25 +552,43 @@
 
         document.body.appendChild(toast);
 
-        // Abrir las opciones y cerrar el toast
-        document.getElementById('btn-fix-api').addEventListener('click', () => {
-            chrome.runtime.sendMessage({ accion: "abrirOpciones" });
-            toast.remove();
+
+        // Lógica para cerrar el error con animación
+        const cerrarError = () => {
+            toast.style.animation = "slideOutRightAPI 0.4s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards";
+            setTimeout(() => toast.remove(), 400);
+        };
+
+        // Cierre manual (Boton ignorar)
+        document.getElementById('btn-close-api-error').addEventListener('click', () => {
+            clearTimeout(autoCloseTimerAPI);
+            cerrarError();
         });
 
-        document.getElementById('btn-close-api-error').addEventListener('click', () => {
-            toast.remove();
+        // Cierre manual (Boton configurar)
+        document.getElementById('btn-fix-api').addEventListener('click', () => {
+            clearTimeout(autoCloseTimerAPI);
+            chrome.runtime.sendMessage({ accion: "abrirOpciones" });
+            cerrarError();
         });
+
+        // Cierre automático a los 15 segundos
+        const autoCloseTimerAPI = setTimeout(() => {
+            if (document.body.contains(toast)) {
+                cerrarError();
+            }
+        }, 15000);
     }
 
     //--------------------------------------------------------------------------------------------------------------Fin bloqueo y avisos
 
 
 
-    //--------------------------------------------------------------------------------------------------------------Reactivacion del agente (SPA)
+    //--------------------------------------------------------------------------------------------------------------Reactivacion del agente (SPA o cambio de clave)
 
     /*
-        Se activa solo cuando el background detecta un cambio de endpoint dentro del mismo dominio.
+        Este primero se activa solo cuando el background detecta un cambio de endpoint dentro del mismo dominio, mientras que el segundo listerner
+        funcionará cuando se meta una nueva key (si tenemos una nueva clave probablemente la anterior no funcionaba por lo cual lanzamos un escaneo)
         Notar que, esto lo que hace es reactivar un content YA inyectado en la pagina, mientras que las medidas de antirebote que hemos estado instalando
         servían para evitar que se inyecte un nuevo content cuando ya hay uno.
         Podria darse el caso de que volvamos a realizar un analisis de una pagina previamente escaneada por cambio de endpoint que no hace casi nada,
@@ -512,9 +596,31 @@
      */
 
 
-    chrome.runtime.onMessage.addListener((request) => {
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.accion === "reactivarVigilancia") {
             console.log("[Content] Cambio de ruta interno detectado. Reiniciando vigilancia.");
+            iniciarBusqueda();
+        } else if (request.accion === "getEstado") {
+            // Respuesta al popup
+            sendResponse({ estado: estadoActual });
+        } else if (request.accion === "forzarEscaneo") {
+            iniciarBusqueda();
+            sendResponse({ estado: estadoActual }); //Se le actualiza al popup, y cuando se termine será el setEstado el encargado de avisarlo.
+        }
+
+        return true; //Mantenemos el canal abierto por posible funcionalidad futura asincrona.
+    });
+
+    chrome.storage.onChanged.addListener((cambios, area) => {
+        // Comprobamos si el cambio se ha producido en la memoria sync y afecta a la API Key
+        if (area === 'sync' && cambios.geminiApiKey) {
+            console.log("[Content] Nueva API Key detectada en memoria. Lanzamos nueva vigilancia.");
+
+            // Si el aviso rojo de error estaba en pantalla, lo borramos mágicamente
+            const toastErrorAPI = document.getElementById("phishing-ids-apierror");
+            if (toastErrorAPI) toastErrorAPI.remove();
+
+            // Reiniciamos el escáner
             iniciarBusqueda();
         }
     });

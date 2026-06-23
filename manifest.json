@@ -10,7 +10,8 @@
   },
   "action": {
     "default_icon": "logo.png",
-    "default_title": "Phishing AI Analyzer"
+    "default_title": "Phishing AI Analyzer",
+    "default_popup": "popup.html"
   },
   "permissions": [
     "webNavigation",
