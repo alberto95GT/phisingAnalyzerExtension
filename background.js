@@ -131,8 +131,8 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(manejarNavegacion);
 
 /*
     Historial a corto plazo de dominios visitados para rastreo. Creamos un map en el que almacenamos par --> (pestaña, lista-dominios)
-    Así, por cada pestaña que tenemos abierta tenemos un rastreo corto de los dominios visitados, que se le pasará al agente cuando analice
-    una pagina sospechosa.
+    Así, por cada pestaña que tenemos abierta tenemos un rastreo corto de trazas que sigue una navegación desde una misma página,
+    que se le pasará al agente cuando analice una pagina sospechosa.
  */
 const historialPestanas = new Map();
 
@@ -148,24 +148,57 @@ chrome.webNavigation.onCommitted.addListener((details) => {
         //Tomamos la lista asociada a la página que nos ha activado con el commited
         let historial = historialPestanas.get(tabId) || [];
 
-        // Evitamos añadir la misma URL dos veces seguidas (por si el usuario recarga la página)
-        if (historial.length === 0 || historial[historial.length - 1] !== url) {
-            historial.push(url);
+        // Analizamos como ha llegado el usuario a la pagina.
+        const tipoTransicion = details.transitionType;
+        const esRedireccion = details.transitionQualifiers && (
+            details.transitionQualifiers.includes("server_redirect") ||
+            details.transitionQualifiers.includes("client_redirect")
+        );
+
+
+        // Si es una nueva busqueda o marcador
+        const nuevaNavegacion = ['typed', 'auto_bookmark', 'generated', 'keyword', 'keyword_generated', 'start_page'].includes(tipoTransicion);
+
+        if (nuevaNavegacion && !esRedireccion) {
+            // Busqueda voluntaria del usuario, reiniciamos el historial
+            historial = [url];
+            console.log(`[Background] Historial reiniciado por nueva busqueda: ${url}`);
+        } else if (tipoTransicion === 'link' || tipoTransicion === 'form_submit' || esRedireccion) {
+            // El usuario hizo clic en un enlace o botón, añadimos al historial.
+            if (historial.length === 0 || historial[historial.length - 1] !== url) {
+                historial.push(url);
+                console.log(`[Background] Historial actualizado. Nueva direccion: ${url}`);
+            }
         }
 
-        // Mantenemos solo un límite de las últimas 5 URLs
         if (historial.length > 5) {
             historial.shift();
         }
 
         historialPestanas.set(tabId, historial);
-        //console.log(`[Background] Historial de pestaña ${tabId} actualizado:`, historial);
-    }
+
+        }
 });
 
 // Borrar historial si se cierra la pestaña
 chrome.tabs.onRemoved.addListener((tabId) => {
-    historialPestanas.delete(tabId);
+    if (historialPestanas.has(tabId)) {
+        historialPestanas.delete(tabId);
+        console.log(`[Background] Historial limpiado por cierre de pestaña: ${tabId}`);
+    }
+});
+
+// En caso de que se abra una nueva pestaña, se comprueba si tiene otra que la inició y se le copia su historial
+chrome.webNavigation.onCreatedNavigationTarget.addListener((details) => {
+    const sourceTabId = details.sourceTabId; // La posible pestaña original
+    const newTabId = details.tabId;          // La nueva pestaña
+
+    if (historialPestanas.has(sourceTabId)) {
+        // Hacemos una copia exacta del array en caso de tener pestaña madre.
+        const historialHeredado = [...historialPestanas.get(sourceTabId)];
+        historialPestanas.set(newTabId, historialHeredado);
+        console.log(`[Background] La nueva pestaña ${newTabId} hereda el historial de la pestaña que la origino ${sourceTabId}`);
+    }
 });
 
 //------------------------------------------------------------------------------------------------Fin del analisis
@@ -197,7 +230,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         //Le inyectamos a los datos recibidos el historial de los ultimos 5 dominios visitados o bien una lista vacía
         const tabId = sender.tab.id;
-        request.datos.cadenaRedirecciones = historialPestanas.get(tabId) || [];
+        request.datos.historialNavegacion = historialPestanas.get(tabId) || [];
 
         console.log("[Background] Datos para la IA:", request.datos);
 
@@ -243,12 +276,15 @@ PASO 3: RUTA DE CREDENCIALES (Solo piden passwords/logins)
 Si solicitan contraseñas, evalúa las amenazas críticas:
 - 3.1 Suplantación: Si afirma ser una marca conocida (Microsoft, Google, Banco) PERO la 'urlActual' NO es su dominio oficial: VEREDICTO: BLOQUEAR.
 - 3.2 Exfiltración Cruda: Si el 'destinoDatos' apunta a una IP directa (192.168.x.x) o a un endpoint sospechoso sin relación: VEREDICTO: BLOQUEAR.
-- 3.3 Redirecciones y Anomalías de Dominio (TDS): Analiza la 'cadenaRedirecciones' y la 'urlActual'. Los atacantes usan redirecciones y dominios baratos (.cc, .top, .xyz, .ru, .tk) para evadir filtros. No bloquees solo por la terminación del dominio, CORRELACIONA LOS DATOS: Si ves un desajuste lógico evidente en la página (ej. una web con textos orientados a público local/español alojada en un dominio asiático, ruso o inusual, o múltiples redirecciones sin sentido hacia un formulario de login): VEREDICTO: BLOQUEAR. Si la web tiene coherencia (ej. una startup tecnológica lícita usando .xyz o .io sin redirecciones extrañas), permite que pase al Paso 4.
-
+- 3.3 Análisis de Embudo de Navegación (Phishing Multietapa): Revisa el 'historialNavegacion', que contiene la cadena reciente de pasos del usuario. Evalúa la coherencia del viaje comparando el origen con la 'urlActual':
+  * Flujo Lícito (Natural): Si el usuario va de un sitio cualquiera (ej. un blog) hacia el login OFICIAL de una marca conocida (ej. instagram.com, paypal.com), o navega entre webs normales que no intentan suplantar a nadie.
+  * Flujo Fraudulento (Ingeniería Social): Si el usuario proviene de un "gancho" (páginas de supuestos sorteos, alertas de virus, empresas de paquetería o falsos bancos) y termina en un formulario de login alojado en un dominio extraño, irrelevante o con una URL que intenta imitar a la marca real pero falla.
+  Si el viaje coincide con el Flujo Fraudulento: VEREDICTO: BLOQUEAR. Si el viaje es un Flujo Lícito y la 'urlActual' tiene sentido, ignora el historial y permite que pase al Paso 4.
+  
 PASO 4: ANÁLISIS DE INCERTIDUMBRE (Para webs desconocidas o pymes)
 Si sobrevivió al Paso 3 (es una web pequeña pidiendo contraseña):
 - 4.1 Ingeniería Social: Si el texto usa tácticas de miedo, coacción o urgencia ("PC infectado", "Cuenta será eliminada en 2 min"): VEREDICTO: BLOQUEAR.
-- 4.2 Integridad Deficiente: Si la web no usa tácticas de miedo, pero la inmensa mayoría de los enlaces ('estadisticasLinks') están vacíos o rotos, indicando un posible clon en construcción: VEREDICTO: AVISO.
+- 4.2 Integridad Deficiente: Actualmente es normal que existan enlaces vacíos (href='#') usados para menús y botones JavaScript. NO emitas alertas por un par de enlaces vacíos. Sin embargo, emite un VEREDICTO: AVISO si la página es desconocida Y presenta una cantidad absurda de enlaces falsos (ej. más del 80% de enlaces vacíos en una página con muchos links), lo cual es síntoma de una plantilla de phishing a medio clonar.
 - 4.3 Web Lícita: Si no hay miedo y la integridad es normal: VEREDICTO: PERMITIR.
 
 [FORMATO DE RESPUESTA OBLIGATORIO]

@@ -600,6 +600,7 @@
         if (request.accion === "reactivarVigilancia") {
             console.log("[Content] Cambio de ruta interno detectado. Reiniciando vigilancia.");
             iniciarBusqueda();
+            sendResponse({ estado: estadoActual });
         } else if (request.accion === "getEstado") {
             // Respuesta al popup
             sendResponse({ estado: estadoActual });
