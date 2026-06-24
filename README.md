@@ -1,76 +1,112 @@
-#  Phishing AI Analyzer Extension (v1.1)
+# 🛡️ Phishing AI Analyzer
 
-Extensión de Google Chrome (Manifest V3) diseñada para el análisis heurístico estructural del DOM en tiempo real y la detección proactiva de ataques de suplantación de identidad (Phishing) y exfiltración de credenciales mediante Inteligencia Artificial (Gemini API).
+### Descripción
+¿Conoces a alguien que haya sido alguna vez víctima de una estafa online? Eso es exactamente lo que pretendemos evitar con esta herramienta. Cuando el ser humano entra en pánico o actúa con urgencia, no es capaz de mirar los pequeños detalles. Pero los agentes de IA no pasan estos por alto.
 
-Esta versión consolida la estabilidad de la extensión resolviendo las problemáticas clásicas de interferencia de frameworks modernos (SPAs), encapsulamiento de componentes de interfaz (Shadow DOM) y duplicación ineficiente de hilos de control en segundo plano, implementando además el patrón de seguridad industrial **BYOK**.
+Phishing AI Analyzer es un escudo cognitivo en tu navegador que analiza el contexto de la web y tus intenciones de navegación para bloquear robos de datos en tiempo real.
+
+### 📸 Demos y Capturas
+
+**Bloqueo en tiempo real de fraude (Scareware):**
+<p align="center">
+  <img src="./assets/demo-mcafee.gif" width="50%" alt="Demo del bloqueo de McAfee">
+</p>
+
+**Estados y flujo de la extensión:**
+<table>
+  <tr>
+    <td align="center">
+      <strong> Panel de Configuración</strong><br>
+      <img src="./assets/demo-configuracion-clave.png" width="90%" alt="Configuración de clave API">
+    </td>
+    <td align="center">
+      <strong> Análisis del DOM en progreso</strong><br>
+      <img src="./assets/demo-popup-analizando.png" width="100%" alt="Popup analizando con el cerebro de IA">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <strong> Aviso (Integridad)</strong><br>
+      <img src="./assets/demo-aviso.png" width="100%" alt="Aviso naranja en pantalla">
+    </td>
+    <td align="center">
+      <strong> Intercepción crítica</strong><br>
+      <img src="./assets/demo-bloqueo-suplantacion.png" width="100%" alt="Bloqueo rojo por suplantación">
+    </td>
+  </tr>
+</table>
+
+
 
 ---
 
-## 🏗️ Pilares Arquitectónicos y Mejoras de esta Versión
-
-### 1. Soporte Completo para Single Page Applications (SPAs) y Mecanismo Anti-Rebote (Debounce)
-* **El Problema:** Los frameworks web modernos (React, Angular, Vue) modifican la URL del navegador mediante la API de historial nativa sin recargar el documento entero. El Agente se dormía tras un escaneo inicial estático y no detectaba logins desplegados de forma dinámica. Además, las transiciones rápidas de rutas provocaban la inyección concurrente de múltiples scripts duplicados.
-* **La Solución:** * Se expandió el *Service Worker* (`background.js`) acoplando un escuchador al evento nativo `chrome.webNavigation.onHistoryStateUpdated`.
-    * Se implementó un mapa de control de tráfico dinámico (`mapaAntirebotePaginaTemporizador`) con un patrón de **Debounce de 500ms**. El sistema intercepta las micro-redirecciones secuenciales de las SPAs, destruyendo los temporizadores previos y ejecutando la acción únicamente cuando el enrutamiento web se estabiliza.
-
-### 2. Perforación Profunda del Shadow DOM (Shadow-Drilling)
-* **El Problema:** Plataformas financieras de alta seguridad (como el login de Banco Santander) aíslan sus componentes y campos de credenciales dentro de un **Shadow DOM** cerrado. Las llamadas tradicionales del navegador como `document.querySelectorAll` devolvían colecciones vacías al verse incapaces de atravesar estas fronteras sintácticas.
-* **La Solución:** Se diseñó el motor recursivo `extraerElementosProfundos(selector, root)`. Esta función taladra de forma transparente cualquier nodo que contenga una propiedad `shadowRoot`, extrayendo una colección lineal unificada de inputs y enlaces para su posterior análisis.
-
-### 3. Sistema de Mitigación de Duplicados e Inyección Resiliente
-* **El Problema:** Respuestas asíncronas lentas o caídas de puerto por latencia provocaban que el bloque `.catch()` de la mensajería asumiera falsamente la ausencia del Agente, inyectando múltiples copias en una misma pestaña.
-* **La Solución:** * **Capa Content:** Todo `content.js` quedó blindado dentro de una expresión de función autoejecutable (**IIFE**) que valida un flag global inmutable (`window.phishingAgentInyectado`). Si un clon intenta ejecutarse, se auto-elimina instantáneamente.
-    * **Capa Background:** Se implementó un **Catch Inteligente** basado en Expresiones Regulares (`/Receiving end does not exist|Could not establish connection/i`) que analiza sintácticamente el error nativo devuelto por Chrome. Solo se ordena la inyección física (`executeScript`) si hay certeza absoluta de que el puerto no tiene un receptor registrado.
-
-### 4. Desacoplamiento de la Lista Blanca (Data Decoupling)
-* **El Problema:** El mantenimiento manual de una lista interna estática de dominios seguros volvía inmanejable el ciclo de vida del software, requiriendo constantes actualizaciones en la Chrome Web Store.
-* **La Solución:** Se migró la base de datos de dominios de confianza a un repositorio externo controlado en GitHub. La extensión sincroniza este archivo JSON en segundo plano de manera asíncrona mediante tareas cronometradas (`chrome.alarms`) cada 24 horas y de forma inmediata durante la instalación, resguardando los datos en `chrome.storage.local`.
-
-### 5. Pantalla de Bloqueo No Destructiva con Auditoría de Omisión
-* **El Problema:** Las versiones previas destruían destructivamente el HTML legítimo de la pestaña para pintar la pantalla roja de advertencia, impidiendo la recuperación o la navegación en falsos positivos.
-* **La Solución:** La función `ejecutarBloqueo()` ahora despliega una capa superpuesta inyectada (`#phishing-defense-overlay`) con propiedades de aislamiento CSS completas y un `z-index` masivo. Se incorporó un botón de omisión guiada ("Conozco los riesgos") que restaura el flujo web original y despacha un reporte de auditoría asíncrono (`omitirBloqueo`) al *Service Worker* para registrar analíticas de mitigación de falsos bloqueos.
-
-### 6. Implementación del Patrón BYOK (Bring Your Own Key)
-* **El Problema:** Exposición financiera y riesgos de seguridad críticos por "hardcodear" claves privadas de Gemini en el código distribuido.
-* **La Solución:** Transición total al ecosistema BYOK. El usuario introduce de manera independiente su API Key de Google AI Studio en una interfaz gráfica estilizada (`options.html`). La clave se sanea de espacios e irregularidades en `options.js`, se valida mediante una petición HTTP real en vivo al catálogo de modelos de Google, y se persiste de manera encriptada en la nube del usuario a través de `chrome.storage.sync`.
+### ⚙️ Instalación
+Nuestra herramienta es una extensión nativa de Google Chrome, por lo cual su instalación para pruebas locales es muy sencilla:
+1. Descarga el proyecto en tu ordenador.
+2. Ve a `chrome://extensions/` en tu navegador, activa el **Modo de Desarrollador** arriba a la derecha, y pulsa en "Cargar descomprimida", seleccionando la carpeta del proyecto.
+3. Una vez instalada la extensión, debes asegurarte de aportar tu propia **API Key de Gemini** para poder hacer peticiones al agente.
+4. Al instalarla, se abrirá automáticamente un menú de configuración en el cual puedes introducir tu clave y poner todo en funcionamiento. Asegúrate de que la clave es válida comprobando el mensaje de estado en la parte inferior de esa misma página.
 
 ---
 
-## 🦾 Prompt Engineering Avanzado y Árbol de Decisión
+### 🚀 Uso
+Una vez activa, **simplemente debes navegar como siempre lo haces**, no tienes que cambiar absolutamente nada en tu forma de actuar. En la barra superior, la herramienta cuenta con un icono y un popup desplegable que, al pinchar en él, te muestra en tiempo real el estado en el que se encuentra el analizador.
 
-Para mitigar los falsos positivos derivados del análisis probabilístico ciego de modelos de lenguaje ligeros, se reestructuró por completo el prompt del sistema hacia un esquema de **Árbol de Decisión Jerárquico** dotado de blindaje contra inyecciones de código.
+Los posibles estados son los siguientes:
+* 👁️‍🗨️ **Vigilando:** La extensión está escaneando el DOM de la página. Aún no ha detectado ningún formulario peligroso en la página que estás visitando.
+* ⏳ **Analizando:** Ha detectado que la web solicita contraseñas o datos bancarios. Está empaquetando el contexto y consultando a la IA.
+* 🛡️ **Sitio Seguro:** La IA ha analizado la página y determinado que es legítima. Puedes introducir tus datos con tranquilidad.
+* ⚠️ **Aviso de Seguridad:** La página no parece un robo descarado, pero tiene una calidad técnica deficiente o prácticas inseguras. Se recomienda precaución.
+* 🚨 **Amenaza Bloqueada:**  La IA ha interceptado un intento de phishing y ha bloqueado visualmente la pantalla para proteger tus datos.
+* ❌ **Error de API:** Tu clave de Gemini falta, es incorrecta o ha caducado.
 
+---
+
+### 🧠 Tecnologías y Arquitectura
+
+El esquema de la extensión se basa en dos pilares fundamentales: el **Background** y el **Content**. El *background* (Service Worker) es el script que escucha al navegador a bajo nivel y actúa en local, mientras que el *content* es el script que se inyecta directamente en la página web para escanearla e interactuar con ella.
+
+**El flujo de protección que se sigue es el siguiente:**
+
+1. El *background* detecta que navegas a una nueva página. Si no está en nuestra lista blanca estática de dominios confiables, inyecta el *content* para que la analice.
+2. Una vez inyectado, el *content* busca de forma inteligente inputs que recojan datos sensibles, como contraseñas o tarjetas de crédito.
+3. En caso de encontrarlos, en lugar de enviar todo el código HTML de la web (lo cual sería ineficiente), recoge un **esquema JSON optimizado**. Este esquema le dice a la IA cosas clave:
+  * *A qué URL real se van a enviar los datos.*
+  * *Qué textos cercanos al input hay.*
+  * *El porcentaje de "enlaces rotos o vacíos" de la página (un posible síntoma de que es una web clonada deprisa y corriendo).*
+4. El *background* recibe este esquema y le añade una pieza extra: **El historial de navegación**. Esto sirve para rastrear flujos de redirecciones engañosas y saber si el usuario ha llegado al login por su cuenta o si ha sido arrastrado. Todo esto se envía a Gemini.
+5. El prompt maestro obliga al agente a seguir un **árbol de decisión estricto** para evaluar la malicia del paquete:
+
+```text
+[JSON del DOM Recibido + Historial de Navegación]
+                          |
+                          ▼
+            PASO 1: ¿Qué datos solicitan?
+                 /                  \
+      [Datos Bancarios]       [Contraseñas / Logins]
+             |                          |
+             ▼                          ▼
+  PASO 2: Ruta Financiera      PASO 3: Ruta Credenciales
+  ├── ¿Pasarela Oficial?       ├── ¿Suplantación de Marca?
+  │   └── SÍ ➔ PERMITIR        │   └── SÍ ➔ BLOQUEAR
+  │                            │
+  ├── ¿Dominio sospechoso?     ├── ¿Exfiltración a IP pirata?
+  │   └── SÍ ➔ BLOQUEAR        │   └── SÍ ➔ BLOQUEAR
+  │                            │
+  └── ¿Pide CVV en HTML?       └── ¿Historial aparentemente fraudulento? 
+      └── SÍ ➔ AVISO               ├── SÍ ➔ BLOQUEAR
+                                   └── NO
+                                        |
+                                        ▼
+                               PASO 4: Webs Pequeñas / Pymes
+                               ├── ¿Tácticas de Miedo/Urgencia para insercion de datos?
+                               │   └── SÍ ➔ BLOQUEAR
+                               │
+                               ├── ¿Enlaces Rotos/Falsos (>80%)?
+                               │   └── SÍ ➔ AVISO
+                               │
+                               └── Todo Normal / Sin Peligro
+                                   └── SÍ ➔ PERMITIR
 ```
-                  [JSON del DOM Recibido]
-                             │
-                             ▼
-                ¿URL == Dominio Oficial?
-               ├── SÍ ──► [VEREDICTO: PERMITIR]  (Nivel 0: Exención Absoluta)
-               └── NO
-                     │
-                     ▼
-          ¿Suplantación o Exfiltración?
-               ├── SÍ ──► [VEREDICTO: BLOQUEAR]  (Nivel 1: Crítico)
-               └── NO
-                     │
-                     ▼
-        ¿Falta Integridad o Estrés Urgente?
-               ├── SÍ ──► [VEREDICTO: BLOQUEAR]  (Nivel 2: Secundario)
-               └── NO ──► [VEREDICTO: PERMITIR]
-```
+6. Finalmente, la IA devuelve la decisión al *content*, el cual ejecuta la orden (**PERMITE, AVISA o BLOQUEA** la pantalla) y actualiza el popup para informar al usuario.
 
-* **Mitigación de Prompt Injection:** Se encapsulan los datos dinámicos extraídos de la web dentro de fronteras semánticas estrictas (`=== INICIO DE DATOS NO CONFIABLES ===`) y se instruye de forma taxativa al modelo a ignorar mandatos imperativos ocultos dentro del DOM de origen.
-* **Modo Depuración Activo:** El motor opera temporalmente forzando una respuesta estructurada que detalla el `VEREDICTO` y la `EXPLICACION` lógica paso a paso para facilitar las pruebas de laboratorio de la extensión.
-
----
-
-## 🛠️ Flujo Integrado de Comunicación de Mensajería
-
-1. **Gatillo de Red:** El usuario navega hacia un sitio web. `background.js` intercepta el evento (Carga completa o SPA), valida contra la caché local de la lista blanca y decide activar el Agente.
-2. **Activación de Vigilancia:** El *Background* envía una orden por el canal. Si el Agente ya existía, este resetea sus escuchas y reinicia su reloj de 8 segundos. Si no existía, el Catch Inteligente inyecta `content.js`.
-3. **Escaneo del DOM:** El `MutationObserver` y el perforador recursivo extraen de forma síncrona la estructura de datos, empaquetan las métricas en un esquema estructurado y llaman de vuelta al *Service Worker* mediante `accion: "analizarDOM"`.
-4. **Mantenimiento del Puerto Abierto:** Al recibir la orden de análisis, `background.js` retorna de forma inmediata y síncrona un valor booleano **`return true;`** en la raíz de su escuchador. Esto instruye a Chrome a mantener el canal abierto asíncronamente mientras se extrae la API Key de `storage.sync` y se resuelve el `fetch` externo de Gemini.
-5. **Veredicto:** Tras completarse la consulta de red, el *Background* ejecuta `sendResponse` con el dictamen de seguridad final. El `content.js` lo intercepta en su callback y levanta el escudo protector si es necesario.
-
----
-*Desarrollado con estándares Zero-Trust para garantizar la integridad de las credenciales de los usuarios en entornos web modernos.*
